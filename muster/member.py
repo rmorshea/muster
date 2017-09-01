@@ -3,8 +3,20 @@ from functools import wraps
 from collections import defaultdict
 from contextlib import contextmanager
 
-from .operator import Operator, find_directives
-from .utils import Sentinel, annotate, ExitQueue
+from .operator import Operator
+from .utils import Sentinel, ExitQueue
+from .directive import  find_directives, directive_template, split, join
+
+
+def member_directive(command):
+    template = "member:{selector}:%s:{options}" % command
+    def interpreter(directive):
+        parts = split(directive)
+        return {"selector": parts[0], "options": ":".join(parts[1:])}
+    return directive_template(template, interpreter)
+
+when = member_directive("when")
+then = member_directive("then")
 
 
 def dispatch(method):

@@ -34,21 +34,29 @@ def typename(x):
 
 
 class ExitQueue(object):
+    """Like ExitStack, but uses a queue instead of a stack.
+
+    In other words, entering and exiting contexts is handled
+    such that those which are entered first are also exited
+    first (FIFO). While this is unusual behavior for contexts
+    it is more intuitive when thinking about the priority
+    nested contexts should have over one another.
+    """
 
     def __init__(self):
-        self._stack = []
+        self._queue = []
 
     def __enter__(self):
         return self
 
     def enter_context(self, other):
-        self._stack.append(other)
+        self._queue.append(other)
         return other.__enter__()
 
     def __exit__(self, type, value, traceback):
-        for context in self._stack:
+        for context in self._queue:
             context.__exit__(type, value, None)
-        self._stack = []
+        self._queue = []
 
 
 class grouping(object):

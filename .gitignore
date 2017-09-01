@@ -6,6 +6,7 @@ __pycache__/
 MANIFEST
 dist/
 *.egg-info/
+build/
 
 # Translations
 *.mo

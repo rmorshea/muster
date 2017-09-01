@@ -28,7 +28,7 @@ classifiers = [
 # -------
 
 details = """
-
+A streamlined framework for responsive classes.
 """
 
 # Root Paths
@@ -65,6 +65,7 @@ setup_arguments = dict(
     platforms="Linux, Mac OS X, Windows",
     keywords=keywords,
     classifiers=classifiers,
+    install_requires=["six"]
 )
 
 # Setup

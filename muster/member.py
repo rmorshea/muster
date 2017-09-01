@@ -3,15 +3,8 @@ from functools import wraps
 from collections import defaultdict
 from contextlib import contextmanager
 
-from .servant import Servant
+from .operator import Operator, find_directives
 from .utils import Sentinel, annotate, ExitQueue
-
-
-def member(directive):
-    return annotate(member=directive)
-
-
-Undefined = Sentinel("Undefined", "muster", "no value")
 
 
 def dispatch(method):
@@ -23,9 +16,12 @@ def dispatch(method):
     return wrapper
 
 
-class Member(Servant):
+Undefined = Sentinel("Undefined", "muster", "no value")
 
-    directives = ("when", "then")
+
+class Member(Operator):
+
+    classifier = "member"
 
     def __init__(self, parent=None, **data):
         self.data = {}
@@ -39,18 +35,19 @@ class Member(Servant):
         for action, methods in parent.callbacks.items():
             self.callbacks[action].extend(methods)
         
-    def when(self, owner, action, name):
-        store = self.callbacks[action]
+    def when(self, owner, name, command):
+        store = self.callbacks[command]
         if name not in store:
             store.append(name)
         method = getattr(owner, name)
         self._wrap_context_method(owner, name)
 
-    def then(self, owner, after, before):
+    def then(self, owner, before, after):
         method = getattr(owner, after)
-        selector, command, action = self.resolve_directive(method)
-        if not self.is_my_directive(owner, selector, command):
-            raise TypeError("%r is not my directive" % after)
+        directive = self.my_directive(owner, method)
+        if directive is None:
+            raise TypeError("%r has no directive for %s" % (after, self.public))
+        action = directive[2][0]
         index = self.callbacks[action].index(after)
         self.callbacks[action].insert(index, before)
         self._wrap_context_method(owner, before)
@@ -74,17 +71,18 @@ class Member(Servant):
 
     @dispatch
     def default(self, obj, value=Undefined):
-        if value is Undefined:
-            raise AttributeError(self.public)
-        else:
+        if value is not Undefined:
             setattr(self, self.private, value)
-            return value
+        return value
 
     def get(self, obj):
         try:
             return getattr(obj, self.private)
         except AttributeError:
-            return self.default(obj)
+            value = self.default(obj)
+            if value is Undefined:
+                raise AttributeError(self.public)
+            return value
 
     @contextmanager
     def distpatcher(self, obj, action, kwargs):
@@ -94,7 +92,6 @@ class Member(Servant):
                 out = queue.enter_context(context)
                 kwargs.update(out or {})
             yield
-
 
     def __set__(self, obj, val):
         self.set(obj, value=val)

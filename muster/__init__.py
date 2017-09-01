@@ -1,3 +1,4 @@
-from .member import Member, member
+from .member import Member
+from .operator import directive
 from .utils.compat import Model
-from .servant import grouping
+from .utils import grouping

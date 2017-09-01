@@ -1,0 +1,16 @@
+include LICENSE
+include README.md
+include .travis.yml
+include requirements.txt
+
+# Examples
+graft examples
+
+# Patterns to exclude from any directory
+global-exclude *~
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.pyd
+global-exclude *.egg-info
+global-exclude .git
+global-exclude .ipynb_checkpoints

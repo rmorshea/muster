@@ -1,7 +1,8 @@
 import inspect
 
 
-def annotate(**notes):
+def annotate(*args, **kwargs):
+    notes = dict(*args, **kwargs)
     def setup(method):
         if not hasattr(method, "__annotations__"):
             setattr(method, "__annotations__", {})
@@ -49,3 +50,33 @@ class ExitQueue(object):
             context.__exit__(type, value, None)
         self._stack = []
 
+
+class grouping(object):
+
+    def __init__(self, type):
+        self.type = type
+
+    def __call__(self, filter):
+        self.name = filter.__name__
+        self.filter = filter
+        return self
+
+    def __get__(self, obj, cls):
+        result = []
+        for k in dir(cls):
+            if k != self.name:
+                try:
+                    v = getattr(cls, k)
+                except:
+                    pass
+                else:
+                    if isinstance(v, self.type):
+                        result.append(v)
+        if obj is None:
+            return list(self.filter(cls, result))
+        else:
+            values = {}
+            for s in self.filter(cls, result):
+                name = s.public
+                values[name] = getattr(obj, name)
+            return values

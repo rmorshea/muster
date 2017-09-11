@@ -1,5 +1,13 @@
 import re
-from .compat import Base
+import inspect
+from .compat import Model
+
+
+def annotate(**notes):
+    local = inspect.currentframe().f_back.f_locals
+    annotations = local.setdefault("__annotations__", {})
+    for k, v in notes:
+        annotations[k] = v
 
 
 def annotations(x):

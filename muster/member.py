@@ -26,11 +26,14 @@ def action(method):
     @wraps(method)
     def wrapper(self, obj, **kwargs):
         action = method.__name__
+        copy = kwargs.copy()
         for cb in self.callbacks["before-%s" % action]:
-            getattr(obj, cb)(self, kwargs)
+            getattr(obj, cb)(self, copy)
+        for k in kwargs:
+            kwargs[k] = copy[k]
         kwargs["returns"] = method(self, obj, **kwargs)
         for cb in self.callbacks["after-%s" % action]:
-            getattr(obj, cb)(kwargs)
+            getattr(obj, cb)(self, copy)
         return kwargs["returns"]
     return wrapper
 

@@ -18,7 +18,7 @@ class Operator(object):
     
     # never matches
     selector = "^(?!.*)$"
-    
+
     def __init__(self, parent=None):
         self.instructions = {}
         if parent is not None:

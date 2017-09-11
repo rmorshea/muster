@@ -1,4 +1,3 @@
-from .operator import directive, directive_template
-from .member import Member, when, then
-from .utils.compat import Model
-from .utils import grouping
+from .member import Member
+from .operator import directive
+from .utils import Model, instruction, grouping

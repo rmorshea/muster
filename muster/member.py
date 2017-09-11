@@ -1,93 +1,107 @@
-import inspect
 from functools import wraps
 from collections import defaultdict
-from contextlib import contextmanager
-
-from .operator import Operator
-from .utils import Sentinel, ExitQueue
-from .directive import  find_directives, directive_template, split, join
+from .operator import Operator, directive
 
 
-def member_directive(command):
-    template = "member:{selector}:%s:{options}" % command
-    def interpreter(directive):
-        parts = split(directive)
-        return {"selector": parts[0], "options": ":".join(parts[1:])}
-    return directive_template(template, interpreter)
+class Sentinel(object):
 
-when = member_directive("when")
-then = member_directive("then")
+    def __init__(self, name, module, info=None):
+        self.name = "%s.%s" % (module, name)
+        self.info = info
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        if self.info is not None:
+            return "%s - %s" % (repr(self), self.info)
+        else:
+            return repr(self)
 
 
-def dispatch(method):
+Undefined = Sentinel("Undefined", "muster")
+
+
+def action(method):
     @wraps(method)
     def wrapper(self, obj, **kwargs):
         action = method.__name__
-        with self.distpatcher(obj, action, kwargs):
-            return method(self, obj, **kwargs)
+        copy = kwargs.copy()
+        for cb in self.callbacks["before-%s" % action]:
+            getattr(obj, cb)(self, copy)
+        for k in kwargs:
+            kwargs[k] = copy[k]
+        kwargs["returns"] = method(self, obj, **kwargs)
+        for cb in self.callbacks["after-%s" % action]:
+            getattr(obj, cb)(self, copy)
+        return kwargs["returns"]
     return wrapper
-
-
-Undefined = Sentinel("Undefined", "muster", "no value")
 
 
 class Member(Operator):
 
-    classifier = "member"
-
-    def __init__(self, parent=None, **data):
-        self.data = {}
+    selector = "^(.*) (.*)$"
+    
+    def __init__(self, parent=None):
         self.callbacks = defaultdict(list)
         super(Member, self).__init__(parent)
-        self.data.update(data)
-
+    
     def inherit(self, parent):
+        self.__set_name__(parent.owner, parent.public)
         super(Member, self).inherit(parent)
-        self.data.update(parent.data)
-        for action, methods in parent.callbacks.items():
-            self.callbacks[action].extend(methods)
+    
+    def note_to_instruction(self, note):
+        return " ".join(l.lstrip() for l in note.split("\n"))
+
+    def selection(self, cls, instruction, selector):
+        selector = getattr(cls, selector)
+        if callable(selector):
+            selector = selector()
+        try:
+            selector = list(selector)
+        except TypeError:
+            selector = [selector]
+        if self in selector:
+            return instruction
+    
+    @directive("^then (.*)$")
+    def then(self, cls, before, after):
+        if not self.callbacks:
+            raise ValueError("%r has no callbacks yet" % self)
+        for callbacks in self.callbacks.values():
+            try:
+                i = callbacks.index(after)
+            except:
+                raise ValueError("No callback %r exists" % after)
+            else:
+                callbacks.insert(i, before)
         
-    def when(self, owner, name, command):
-        store = self.callbacks[command]
-        if name not in store:
-            store.append(name)
-        method = getattr(owner, name)
-        self._wrap_context_method(owner, name)
+    @directive("^before (.*)$")
+    def before(self, cls, name, action):
+        self.callbacks["before-%s" % action].append(name)
 
-    def then(self, owner, before, after):
-        method = getattr(owner, after)
-        directive = self.my_directive(owner, method)
-        if directive is None:
-            raise TypeError("%r has no directive for %s" % (after, self.public))
-        action = directive[2][0]
-        index = self.callbacks[action].index(after)
-        self.callbacks[action].insert(index, before)
-        self._wrap_context_method(owner, before)
+    @directive("^after (.*)$")
+    def after(self, cls, name, action):
+        self.callbacks["after-%s" % action].append(name)
 
-    @staticmethod
-    def _wrap_context_method(cls, name):
-        method = getattr(cls, name)
-        if inspect.isgeneratorfunction(method):
-            setattr(cls, name, contextmanager(method))
-
-    @dispatch
-    def set(self, obj, value):
+    @action
+    def setting(self, obj, value):
         setattr(obj, self.private, value)
 
-    @dispatch
-    def delete(self, obj):
+    @action
+    def deleting(self, obj):
         try:
             delattr(self, self.private)
         except AttributeError:
             raise AttributeError(self.public)
 
-    @dispatch
+    @action
     def default(self, obj, value=Undefined):
         if value is not Undefined:
             setattr(self, self.private, value)
         return value
 
-    def get(self, obj):
+    def getting(self, obj):
         try:
             return getattr(obj, self.private)
         except AttributeError:
@@ -96,23 +110,14 @@ class Member(Operator):
                 raise AttributeError(self.public)
             return value
 
-    @contextmanager
-    def distpatcher(self, obj, action, kwargs):
-        with ExitQueue() as queue:
-            for cb in self.callbacks[action]:
-                context = getattr(obj, cb)(self, **kwargs)
-                out = queue.enter_context(context)
-                kwargs.update(out or {})
-            yield
-
     def __set__(self, obj, val):
-        self.set(obj, value=val)
+        self.setting(obj, value=val)
 
     def __get__(self, obj, cls):
         if obj is not None:
-            return self.get(obj)
+            return self.getting(obj)
         else:
             return self
 
     def __delete__(self, obj):
-        self.delete(obj)
+        self.deleting(obj)

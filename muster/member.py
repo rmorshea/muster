@@ -24,14 +24,14 @@ Undefined = Sentinel("Undefined", "muster")
 
 def action(method):
     @wraps(method)
-    def wrapper(self, obj, **kwargs):
+    def wrapper(self, obj, *args, **kwargs):
         action = method.__name__
         copy = kwargs.copy()
         for cb in self.callbacks["before-%s" % action]:
             getattr(obj, cb)(self, copy)
         for k in kwargs:
             kwargs[k] = copy[k]
-        kwargs["returns"] = method(self, obj, **kwargs)
+        kwargs["returns"] = method(self, obj, *args, **kwargs)
         for cb in self.callbacks["after-%s" % action]:
             getattr(obj, cb)(self, copy)
         return kwargs["returns"]
